@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>우수팀 투표</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Noto Sans KR"', 'sans-serif'],
+                        display: ['"Black Han Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Noto Sans KR', sans-serif; }
+        .page { display: none; }
+        .page.active { display: flex; }
+
+        .team-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .team-card:hover { transform: translateY(-6px) scale(1.02); }
+        .team-card:active { transform: scale(0.97); }
+        .team-card.selected { transform: scale(1.04); }
+
+        .bar-fill { transition: width 1.8s cubic-bezier(0.22, 1, 0.36, 1); }
+
+        .fade-in { animation: fadeIn 0.6s ease-out both; }
+        .fade-in-up { animation: fadeInUp 0.6s ease-out both; }
+        .slide-in { animation: slideIn 0.5s ease-out both; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-12px); }
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.2); }
+            50% { box-shadow: 0 0 60px rgba(99, 102, 241, 0.5); }
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% center; }
+            100% { background-position: 200% center; }
+        }
+        .float { animation: float 3s ease-in-out infinite; }
+        .winner-glow { animation: pulseGlow 2s ease-in-out infinite; }
+        .shimmer-text {
+            background: linear-gradient(90deg, #fff 0%, #ffd700 50%, #fff 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shimmer 3s linear infinite;
+        }
+
+        .gradient-main { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%); }
+        .gradient-card-1 { background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%); }
+        .gradient-card-2 { background: linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%); }
+        .gradient-card-3 { background: linear-gradient(135deg, #34d399 0%, #10b981 100%); }
+        .gradient-card-4 { background: linear-gradient(135deg, #fb923c 0%, #f97316 100%); }
+        .gradient-card-5 { background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%); }
+        .gradient-card-6 { background: linear-gradient(135deg, #f87171 0%, #ef4444 100%); }
+        .gradient-card-7 { background: linear-gradient(135deg, #2dd4bf 0%, #14b8a6 100%); }
+        .gradient-card-8 { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+
+        .glass { background: rgba(255,255,255,0.15); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); }
+        .glass-dark { background: rgba(0,0,0,0.05); backdrop-filter: blur(8px); }
+
+        .result-row { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; }
+
+        .qr-wrapper {
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+        }
+
+        input:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            transition: all 0.3s;
+        }
+        .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4); }
+        .btn-primary:active { transform: scale(0.97); }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50 antialiased">
+
+    <!-- ========== 홈 ========== -->
+    <div id="page-home" class="page active flex-col items-center justify-center min-h-screen gradient-main text-white relative overflow-hidden">
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+            <div class="absolute -top-40 -right-40 w-96 h-96 bg-white/10 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl"></div>
+        </div>
+        <div class="text-center fade-in p-8 relative z-10">
+            <div class="text-7xl mb-8 float">🏆</div>
+            <h1 class="font-display text-5xl md:text-6xl mb-3 tracking-tight">우수팀 투표</h1>
+            <p class="text-lg text-white/70 mb-14 font-light">공정하고 즐거운 우수팀 선정</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center max-w-md mx-auto">
+                <button onclick="showPage('page-admin')"
+                    class="flex-1 px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold text-lg hover:bg-indigo-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-95">
+                    관리자 설정
+                </button>
+                <button onclick="goToVote()"
+                    class="flex-1 px-8 py-4 glass text-white rounded-2xl font-bold text-lg hover:bg-white/25 transition-all active:scale-95">
+                    투표 참여
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 관리자 설정 ========== -->
+    <div id="page-admin" class="page flex-col min-h-screen bg-slate-50">
+        <header class="gradient-main text-white px-6 py-5 shadow-lg">
+            <div class="max-w-lg mx-auto flex items-center gap-4">
+                <button onclick="showPage('page-home')" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-white/25 transition-all text-lg">←</button>
+                <h2 class="text-xl font-bold flex-1">관리자 설정</h2>
+            </div>
+        </header>
+        <div class="flex-1 max-w-lg mx-auto w-full p-5 pb-10">
+            <!-- 과제명 -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-5 fade-in-up">
+                <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">과제명</label>
+                <input id="input-task" type="text" placeholder="예: 프로젝트 최종 발표"
+                    class="w-full px-4 py-3.5 border-2 border-slate-200 rounded-xl text-base focus:border-indigo-500 focus:outline-none transition-all bg-slate-50 placeholder:text-slate-300">
+            </div>
+            <!-- 팀 설정 -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-5 fade-in-up" style="animation-delay:0.1s">
+                <div class="flex items-center justify-between mb-4">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">팀 목록</label>
+                    <div class="flex gap-2">
+                        <button onclick="removeTeamInput()" id="btn-remove-team"
+                            class="w-9 h-9 flex items-center justify-center bg-red-50 text-red-400 rounded-xl text-lg font-bold hover:bg-red-100 hover:text-red-500 transition-all">−</button>
+                        <button onclick="addTeamInput()"
+                            class="w-9 h-9 flex items-center justify-center bg-indigo-50 text-indigo-500 rounded-xl text-lg font-bold hover:bg-indigo-100 transition-all">+</button>
+                    </div>
+                </div>
+                <div id="team-inputs" class="space-y-3"></div>
+            </div>
+            <!-- 버튼 -->
+            <div class="flex gap-3 fade-in-up" style="animation-delay:0.2s">
+                <button onclick="saveSettings()"
+                    class="flex-1 py-4 btn-primary text-white rounded-2xl font-bold text-lg shadow-lg">
+                    저장 및 시작
+                </button>
+                <button onclick="resetAll()"
+                    class="px-5 py-4 bg-white border-2 border-slate-200 text-slate-400 rounded-2xl font-bold hover:bg-slate-50 hover:text-slate-600 hover:border-slate-300 transition-all">
+                    초기화
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== QR코드 & 대기 ========== -->
+    <div id="page-qr" class="page flex-col min-h-screen bg-slate-50">
+        <header class="gradient-main text-white px-6 py-5 shadow-lg">
+            <div class="max-w-lg mx-auto flex items-center gap-4">
+                <button onclick="showPage('page-admin')" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-white/25 transition-all text-lg">←</button>
+                <div class="flex-1">
+                    <h2 class="text-lg font-bold" id="qr-task-title">투표 진행 중</h2>
+                    <p class="text-white/60 text-xs">QR코드를 스캔하여 투표에 참여하세요</p>
+                </div>
+                <button onclick="showPage('page-result')" class="px-4 py-2 glass rounded-xl text-sm font-bold hover:bg-white/25 transition-all">
+                    결과 보기
+                </button>
+            </div>
+        </header>
+        <div class="flex-1 flex flex-col items-center justify-center p-6">
+            <div class="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 text-center max-w-sm w-full fade-in-up">
+                <p class="text-sm text-slate-400 font-medium mb-1">아래 QR코드를 스캔하세요</p>
+                <h3 class="text-xl font-bold text-slate-800 mb-6" id="qr-task-title-2"></h3>
+
+                <div class="qr-wrapper inline-block mb-6">
+                    <div id="qr-image" class="flex justify-center"></div>
+                </div>
+
+                <div class="bg-slate-50 rounded-xl p-3 mb-6 border border-slate-100">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">투표 링크</p>
+                    <p id="vote-url" class="text-xs text-indigo-600 font-medium break-all select-all"></p>
+                </div>
+
+                <div class="inline-flex items-center gap-3 bg-indigo-50 text-indigo-700 rounded-2xl px-6 py-3">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                    </span>
+                    <span class="font-medium">현재 <strong id="vote-count" class="text-2xl font-black">0</strong>표 참여</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 투표 페이지 ========== -->
+    <div id="page-vote" class="page flex-col min-h-screen bg-slate-50">
+        <header class="gradient-main text-white px-6 py-5 shadow-lg">
+            <div class="max-w-lg mx-auto text-center">
+                <h2 class="text-xl font-bold" id="vote-task-title">투표</h2>
+                <p class="text-white/60 text-sm mt-1">가장 우수한 팀 하나를 선택해주세요</p>
+            </div>
+        </header>
+        <div class="flex-1 max-w-lg mx-auto w-full p-5">
+            <div id="team-cards" class="space-y-3 mb-6"></div>
+            <button id="btn-submit-vote" onclick="submitVote()" disabled
+                class="w-full py-4 bg-slate-200 text-slate-400 rounded-2xl font-bold text-lg transition-all cursor-not-allowed">
+                팀을 선택해주세요
+            </button>
+        </div>
+
+        <!-- 투표 완료 오버레이 -->
+        <div id="vote-done-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
+            <div class="bg-white rounded-3xl p-10 text-center max-w-xs mx-4 fade-in-up shadow-2xl">
+                <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
+                    <span class="text-4xl">✅</span>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-800 mb-1">투표 완료!</h3>
+                <p class="text-slate-400 mb-8 text-sm">소중한 한 표 감사합니다</p>
+                <button onclick="showPage('page-home')"
+                    class="w-full py-3.5 btn-primary text-white rounded-xl font-bold">
+                    확인
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========== 결과 페이지 ========== -->
+    <div id="page-result" class="page flex-col min-h-screen bg-slate-50">
+        <header class="gradient-main text-white px-6 py-5 shadow-lg">
+            <div class="max-w-lg mx-auto flex items-center gap-4">
+                <button onclick="showPage('page-qr')" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-white/25 transition-all text-lg">←</button>
+                <h2 class="text-xl font-bold flex-1">투표 결과</h2>
+                <button onclick="showPage('page-home')" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-white/25 transition-all text-lg">🏠</button>
+            </div>
+        </header>
+        <div class="flex-1 max-w-lg mx-auto w-full p-5">
+            <div id="result-task-name" class="text-center mb-6 fade-in-up">
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">과제</p>
+                <h3 class="text-xl font-bold text-slate-800"></h3>
+            </div>
+            <div id="winner-section" class="mb-6 fade-in-up"></div>
+            <div id="result-bars" class="space-y-3"></div>
+            <p class="text-center mt-6 text-slate-300 text-xs font-medium" id="total-votes-text"></p>
+        </div>
+    </div>
+
+<script>
+const STORAGE_KEY = 'team-vote-app';
+const GRADIENTS = [
+    'gradient-card-1','gradient-card-2','gradient-card-3','gradient-card-4',
+    'gradient-card-5','gradient-card-6','gradient-card-7','gradient-card-8'
+];
+const EMOJIS = ['🩷','💙','💚','🧡','💜','❤️','🩵','💛'];
+
+let state = loadState();
+
+function defaultState() {
+    return { task: '', teams: ['1팀', '2팀', '3팀'], votes: {}, votedUsers: [] };
+}
+function loadState() {
+    try {
+        const s = localStorage.getItem(STORAGE_KEY);
+        if (s) return JSON.parse(s);
+    } catch(e) {}
+    return defaultState();
+}
+function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+function getTotalVotes() {
+    return Object.values(state.votes).reduce((a, b) => a + b, 0);
+}
+
+function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id === 'page-admin') initAdmin();
+    if (id === 'page-qr') initQR();
+    if (id === 'page-vote') initVote();
+    if (id === 'page-result') initResult();
+}
+
+// ========== 관리자 ==========
+function initAdmin() {
+    document.getElementById('input-task').value = state.task;
+    const c = document.getElementById('team-inputs');
+    c.innerHTML = '';
+    state.teams.forEach((name, i) => addTeamField(name, i));
+    updateRemoveBtn();
+}
+
+function addTeamField(name, idx) {
+    const c = document.getElementById('team-inputs');
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-3 slide-in';
+    div.style.animationDelay = `${idx * 0.05}s`;
+    div.innerHTML = `
+        <span class="w-9 h-9 rounded-xl ${GRADIENTS[idx % 8]} flex items-center justify-center text-white text-sm flex-shrink-0 shadow-sm">${EMOJIS[idx % 8]}</span>
+        <input type="text" value="${name}" placeholder="팀 이름 입력"
+            class="team-name-input flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl text-base focus:border-indigo-500 focus:outline-none transition-all bg-slate-50 placeholder:text-slate-300">
+    `;
+    c.appendChild(div);
+}
+
+function addTeamInput() {
+    const c = document.getElementById('team-inputs');
+    if (c.children.length >= 10) return alert('최대 10팀까지 설정할 수 있습니다.');
+    addTeamField(`${c.children.length + 1}팀`, c.children.length);
+    updateRemoveBtn();
+}
+
+function removeTeamInput() {
+    const c = document.getElementById('team-inputs');
+    if (c.children.length <= 2) return;
+    c.lastChild.remove();
+    updateRemoveBtn();
+}
+
+function updateRemoveBtn() {
+    const n = document.getElementById('team-inputs').children.length;
+    const btn = document.getElementById('btn-remove-team');
+    btn.disabled = n <= 2;
+    btn.classList.toggle('opacity-30', n <= 2);
+    btn.classList.toggle('cursor-not-allowed', n <= 2);
+}
+
+function saveSettings() {
+    const task = document.getElementById('input-task').value.trim();
+    if (!task) return alert('과제명을 입력해주세요.');
+    const teams = Array.from(document.querySelectorAll('.team-name-input'))
+        .map(i => i.value.trim()).filter(Boolean);
+    if (teams.length < 2) return alert('최소 2팀 이상 입력해주세요.');
+    const votes = {};
+    teams.forEach(t => votes[t] = 0);
+    state = { task, teams, votes, votedUsers: [] };
+    saveState();
+    showPage('page-qr');
+}
+
+function resetAll() {
+    if (!confirm('모든 설정과 투표 결과를 초기화합니다.\n계속하시겠습니까?')) return;
+    state = defaultState();
+    saveState();
+    initAdmin();
+}
+
+// ========== QR코드 ==========
+function initQR() {
+    document.getElementById('qr-task-title').textContent = state.task || '투표 진행 중';
+    document.getElementById('qr-task-title-2').textContent = state.task || '';
+    const baseUrl = window.location.href.split('?')[0].split('#')[0];
+    const url = baseUrl + '?mode=vote';
+    document.getElementById('vote-url').textContent = url;
+    document.getElementById('vote-count').textContent = getTotalVotes();
+
+    generateQR(url);
+
+    if (window._voteInterval) clearInterval(window._voteInterval);
+    window._voteInterval = setInterval(() => {
+        state = loadState();
+        document.getElementById('vote-count').textContent = getTotalVotes();
+    }, 2000);
+}
+
+function generateQR(text) {
+    const container = document.getElementById('qr-image');
+    container.innerHTML = '';
+
+    const size = 200;
+    const qr = createQRMatrix(text);
+    const moduleCount = qr.length;
+    const cellSize = Math.floor(size / moduleCount);
+    const totalSize = cellSize * moduleCount;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = totalSize;
+    canvas.height = totalSize;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, totalSize, totalSize);
+
+    ctx.fillStyle = '#4f46e5';
+    for (let row = 0; row < moduleCount; row++) {
+        for (let col = 0; col < moduleCount; col++) {
+            if (qr[row][col]) {
+                const x = col * cellSize;
+                const y = row * cellSize;
+                const r = cellSize * 0.35;
+                roundRect(ctx, x + 0.5, y + 0.5, cellSize - 1, cellSize - 1, r);
+                ctx.fill();
+            }
+        }
+    }
+    container.appendChild(canvas);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+// QR Code generation (QR Code Model 2, Version auto, EC Level M)
+function createQRMatrix(data) {
+    const EC_M = 0;
+    const mods = encodeDataToModules(data);
+    return mods;
+}
+
+function encodeDataToModules(text) {
+    const encoder = new QREncoder(text);
+    return encoder.modules;
+}
+
+class QREncoder {
+    constructor(data) {
+        this.data = data;
+        const len = data.length;
+        if (len <= 20) this.version = 2;
+        else if (len <= 35) this.version = 3;
+        else if (len <= 50) this.version = 4;
+        else if (len <= 65) this.version = 5;
+        else if (len <= 84) this.version = 6;
+        else if (len <= 122) this.version = 7;
+        else if (len <= 152) this.version = 8;
+        else this.version = 10;
+
+        this.size = this.version * 4 + 17;
+        this.modules = [];
+        this.isFunction = [];
+
+        for (let i = 0; i < this.size; i++) {
+            this.modules.push(new Array(this.size).fill(false));
+            this.isFunction.push(new Array(this.size).fill(false));
+        }
+
+        this.addFinderPatterns();
+        this.addAlignmentPatterns();
+        this.addTimingPatterns();
+        this.addDarkModule();
+        this.addFormatInfo();
+        if (this.version >= 7) this.addVersionInfo();
+        this.addData();
+    }
+
+    setModule(row, col, val, isFunc = true) {
+        if (row >= 0 && row < this.size && col >= 0 && col < this.size) {
+            this.modules[row][col] = val;
+            if (isFunc) this.isFunction[row][col] = true;
+        }
+    }
+
+    addFinderPattern(row, col) {
+        for (let r = -4; r <= 4; r++) {
+            for (let c = -4; c <= 4; c++) {
+                const mr = row + r, mc = col + c;
+                if (mr < 0 || mr >= this.size || mc < 0 || mc >= this.size) continue;
+                const ar = Math.abs(r), ac = Math.abs(c);
+                const val = (ar !== 4 && ac !== 4) && (ar === 3 || ac === 3 || (ar <= 1 && ac <= 1));
+                this.setModule(mr, mc, val);
+            }
+        }
+    }
+
+    addFinderPatterns() {
+        this.addFinderPattern(3, 3);
+        this.addFinderPattern(3, this.size - 4);
+        this.addFinderPattern(this.size - 4, 3);
+    }
+
+    addAlignmentPatterns() {
+        const positions = this.getAlignmentPositions();
+        for (const r of positions) {
+            for (const c of positions) {
+                if ((r <= 8 && c <= 8) || (r <= 8 && c >= this.size - 9) || (r >= this.size - 9 && c <= 8)) continue;
+                for (let dr = -2; dr <= 2; dr++) {
+                    for (let dc = -2; dc <= 2; dc++) {
+                        const val = Math.abs(dr) === 2 || Math.abs(dc) === 2 || (dr === 0 && dc === 0);
+                        this.setModule(r + dr, c + dc, val);
+                    }
+                }
+            }
+        }
+    }
+
+    getAlignmentPositions() {
+        if (this.version === 1) return [];
+        const intervals = [0, 0, 16, 22, 24, 26, 28, 26, 24, 28, 26];
+        const last = this.size - 7;
+        const positions = [6];
+        if (this.version >= 2) {
+            const step = this.version <= 6 ? last - 6 : Math.ceil((last - 6) / Math.ceil((this.version - 1) / 2.0));
+            for (let p = last; p > 6; p -= step) positions.unshift(p);
+            positions.unshift(6);
+            return [...new Set(positions)].sort((a, b) => a - b);
+        }
+        return positions;
+    }
+
+    addTimingPatterns() {
+        for (let i = 8; i < this.size - 8; i++) {
+            const val = i % 2 === 0;
+            if (!this.isFunction[6][i]) this.setModule(6, i, val);
+            if (!this.isFunction[i][6]) this.setModule(i, 6, val);
+        }
+    }
+
+    addDarkModule() {
+        this.setModule(this.size - 8, 8, true);
+    }
+
+    addFormatInfo() {
+        const bits = 0x5412;
+        for (let i = 0; i <= 5; i++) this.setModule(8, i, ((bits >> i) & 1) !== 0);
+        this.setModule(8, 7, ((bits >> 6) & 1) !== 0);
+        this.setModule(8, 8, ((bits >> 7) & 1) !== 0);
+        this.setModule(7, 8, ((bits >> 8) & 1) !== 0);
+        for (let i = 9; i < 15; i++) this.setModule(14 - i, 8, ((bits >> i) & 1) !== 0);
+
+        for (let i = 0; i < 8; i++) this.setModule(this.size - 1 - i, 8, ((bits >> i) & 1) !== 0);
+        for (let i = 8; i < 15; i++) this.setModule(8, this.size - 15 + i, ((bits >> i) & 1) !== 0);
+    }
+
+    addVersionInfo() {
+        const versionBits = [0, 0, 0, 0, 0, 0, 0,
+            0x07C94, 0x085BC, 0x09A99, 0x0A4D3
+        ];
+        const bits = versionBits[this.version] || 0;
+        for (let i = 0; i < 18; i++) {
+            const val = ((bits >> i) & 1) !== 0;
+            const r = Math.floor(i / 3);
+            const c = this.size - 11 + (i % 3);
+            this.setModule(r, c, val);
+            this.setModule(c, r, val);
+        }
+    }
+
+    addData() {
+        const bytes = this.encodeBytes();
+        let bitIndex = 0;
+        let upward = true;
+
+        for (let right = this.size - 1; right >= 1; right -= 2) {
+            if (right === 6) right = 5;
+            const rows = upward
+                ? Array.from({length: this.size}, (_, i) => this.size - 1 - i)
+                : Array.from({length: this.size}, (_, i) => i);
+
+            for (const row of rows) {
+                for (let c = 0; c < 2; c++) {
+                    const col = right - c;
+                    if (this.isFunction[row][col]) continue;
+                    let bit = false;
+                    if (bitIndex < bytes.length * 8) {
+                        bit = ((bytes[bitIndex >> 3] >> (7 - (bitIndex & 7))) & 1) !== 0;
+                        bitIndex++;
+                    }
+                    const mask = (row + col) % 2 === 0;
+                    this.modules[row][col] = bit !== mask;
+                }
+            }
+            upward = !upward;
+        }
+    }
+
+    encodeBytes() {
+        const utf8 = new TextEncoder().encode(this.data);
+        const totalCodewords = this.getTotalCodewords();
+        const ecCodewords = this.getECCodewords();
+        const dataCodewords = totalCodewords - ecCodewords;
+
+        const bits = [];
+        const addBits = (val, len) => { for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1); };
+
+        addBits(0b0100, 4);
+        const countBits = this.version <= 9 ? 8 : 16;
+        addBits(utf8.length, countBits);
+
+        for (const b of utf8) addBits(b, 8);
+
+        addBits(0, Math.min(4, dataCodewords * 8 - bits.length));
+        while (bits.length % 8 !== 0) bits.push(0);
+
+        const padBytes = [0xEC, 0x11];
+        let padIdx = 0;
+        while (bits.length < dataCodewords * 8) {
+            addBits(padBytes[padIdx % 2], 8);
+            padIdx++;
+        }
+
+        const result = new Uint8Array(totalCodewords);
+        for (let i = 0; i < dataCodewords; i++) {
+            let byte = 0;
+            for (let j = 0; j < 8; j++) byte = (byte << 1) | (bits[i * 8 + j] || 0);
+            result[i] = byte;
+        }
+
+        const ecBytes = this.computeEC(result.slice(0, dataCodewords), ecCodewords);
+        result.set(ecBytes, dataCodewords);
+        return result;
+    }
+
+    getTotalCodewords() {
+        const table = [0, 26, 44, 70, 100, 134, 172, 196, 242, 292, 346];
+        return table[this.version] || 200;
+    }
+
+    getECCodewords() {
+        const table = [0, 10, 16, 26, 36, 48, 64, 72, 86, 100, 56];
+        return table[this.version] || 30;
+    }
+
+    computeEC(data, ecLen) {
+        const gf256Exp = new Uint8Array(512);
+        const gf256Log = new Uint8Array(256);
+        let val = 1;
+        for (let i = 0; i < 255; i++) {
+            gf256Exp[i] = val;
+            gf256Log[val] = i;
+            val = (val << 1) ^ (val >= 128 ? 0x11d : 0);
+        }
+        for (let i = 255; i < 512; i++) gf256Exp[i] = gf256Exp[i - 255];
+
+        const gen = new Uint8Array(ecLen + 1);
+        gen[0] = 1;
+        for (let i = 0; i < ecLen; i++) {
+            for (let j = i + 1; j >= 1; j--) {
+                gen[j] ^= gf256Exp[(gf256Log[gen[j - 1]] + i) % 255];
+            }
+        }
+
+        const result = new Uint8Array(ecLen);
+        const msg = new Uint8Array(data.length + ecLen);
+        msg.set(data);
+
+        for (let i = 0; i < data.length; i++) {
+            const coef = msg[i];
+            if (coef !== 0) {
+                for (let j = 0; j <= ecLen; j++) {
+                    msg[i + j] ^= gf256Exp[(gf256Log[gen[j]] + gf256Log[coef]) % 255];
+                }
+            }
+        }
+        result.set(msg.slice(data.length));
+        return result;
+    }
+}
+
+// ========== 투표 ==========
+let selectedTeam = null;
+
+function goToVote() {
+    if (!state.task || state.teams.length === 0) {
+        alert('관리자가 아직 투표를 설정하지 않았습니다.');
+        return showPage('page-admin');
+    }
+    showPage('page-vote');
+}
+
+function initVote() {
+    document.getElementById('vote-done-overlay').classList.add('hidden');
+    document.getElementById('btn-submit-vote').style.display = '';
+    selectedTeam = null;
+    document.getElementById('vote-task-title').textContent = state.task || '투표';
+
+    const uid = getVoterId();
+    if (state.votedUsers.includes(uid)) {
+        showAlreadyVoted();
+        return;
+    }
+
+    const container = document.getElementById('team-cards');
+    container.innerHTML = '';
+
+    state.teams.forEach((team, i) => {
+        const card = document.createElement('button');
+        card.className = `team-card w-full rounded-2xl p-5 ${GRADIENTS[i % 8]} text-white shadow-md text-left fade-in-up`;
+        card.style.animationDelay = `${i * 0.08}s`;
+        card.innerHTML = `
+            <div class="flex items-center gap-4">
+                <span class="text-3xl">${EMOJIS[i % 8]}</span>
+                <span class="text-xl font-bold flex-1">${team}</span>
+                <div class="w-7 h-7 rounded-full border-2 border-white/50 flex items-center justify-center transition-all team-check">
+                    <svg class="w-4 h-4 opacity-0 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
+                    </svg>
+                </div>
+            </div>
+        `;
+        card.onclick = () => selectTeam(team, card);
+        container.appendChild(card);
+    });
+
+    updateVoteBtn();
+}
+
+function selectTeam(team, card) {
+    selectedTeam = team;
+    document.querySelectorAll('.team-card').forEach(c => {
+        c.classList.remove('ring-4', 'ring-white', 'shadow-2xl', 'selected');
+        c.querySelector('.team-check').classList.remove('bg-white/40');
+        c.querySelector('svg').classList.add('opacity-0');
+    });
+    card.classList.add('ring-4', 'ring-white', 'shadow-2xl', 'selected');
+    card.querySelector('.team-check').classList.add('bg-white/40');
+    card.querySelector('svg').classList.remove('opacity-0');
+    updateVoteBtn();
+}
+
+function updateVoteBtn() {
+    const btn = document.getElementById('btn-submit-vote');
+    if (selectedTeam) {
+        btn.disabled = false;
+        btn.className = 'w-full py-4 btn-primary text-white rounded-2xl font-bold text-lg shadow-lg cursor-pointer';
+        btn.textContent = `'${selectedTeam}' 에 투표하기`;
+    } else {
+        btn.disabled = true;
+        btn.className = 'w-full py-4 bg-slate-200 text-slate-400 rounded-2xl font-bold text-lg cursor-not-allowed transition-all';
+        btn.textContent = '팀을 선택해주세요';
+    }
+}
+
+function submitVote() {
+    if (!selectedTeam) return;
+    const uid = getVoterId();
+    state = loadState();
+    if (state.votedUsers.includes(uid)) return showAlreadyVoted();
+    if (state.votes[selectedTeam] !== undefined) state.votes[selectedTeam]++;
+    state.votedUsers.push(uid);
+    saveState();
+    document.getElementById('vote-done-overlay').classList.remove('hidden');
+}
+
+function showAlreadyVoted() {
+    const c = document.getElementById('team-cards');
+    c.innerHTML = `
+        <div class="text-center py-20 fade-in-up">
+            <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-5">
+                <span class="text-4xl">🙏</span>
+            </div>
+            <h3 class="text-xl font-bold text-slate-700 mb-2">이미 투표하셨습니다</h3>
+            <p class="text-slate-400 text-sm">한 사람당 한 번만 투표할 수 있습니다</p>
+        </div>`;
+    document.getElementById('btn-submit-vote').style.display = 'none';
+}
+
+function getVoterId() {
+    let id = localStorage.getItem('voter-uid');
+    if (!id) {
+        id = 'v_' + Math.random().toString(36).slice(2) + Date.now();
+        localStorage.setItem('voter-uid', id);
+    }
+    return id;
+}
+
+// ========== 결과 ==========
+function initResult() {
+    state = loadState();
+    document.querySelector('#result-task-name h3').textContent = state.task;
+    const total = getTotalVotes();
+    document.getElementById('total-votes-text').textContent = `총 ${total}명 참여`;
+
+    const sorted = state.teams
+        .map(t => ({ name: t, votes: state.votes[t] || 0, idx: state.teams.indexOf(t) }))
+        .sort((a, b) => b.votes - a.votes);
+
+    const ws = document.getElementById('winner-section');
+    if (total > 0 && sorted[0].votes > 0) {
+        const w = sorted[0];
+        ws.innerHTML = `
+            <div class="winner-glow ${GRADIENTS[w.idx % 8]} rounded-3xl p-8 text-white text-center relative overflow-hidden">
+                <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+                <div class="relative z-10">
+                    <div class="text-5xl mb-3 float">🏆</div>
+                    <p class="text-white/70 text-xs font-bold uppercase tracking-widest mb-2">우수팀 선정</p>
+                    <h2 class="font-display text-4xl mb-3 shimmer-text">${w.name}</h2>
+                    <p class="text-xl font-bold text-white/90">${w.votes}표 · ${Math.round(w.votes / total * 100)}%</p>
+                </div>
+            </div>`;
+        setTimeout(() => confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 }, colors: ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6'] }), 400);
+    } else {
+        ws.innerHTML = `
+            <div class="bg-slate-100 rounded-3xl p-10 text-center border-2 border-dashed border-slate-200">
+                <div class="text-5xl mb-3">🗳️</div>
+                <p class="text-slate-400 font-bold">아직 투표가 없습니다</p>
+            </div>`;
+    }
+
+    const maxV = sorted.length > 0 ? sorted[0].votes : 1;
+    const barsEl = document.getElementById('result-bars');
+    barsEl.innerHTML = '';
+
+    sorted.forEach((t, i) => {
+        const pct = total > 0 ? Math.round(t.votes / total * 100) : 0;
+        const barW = maxV > 0 ? (t.votes / maxV * 100) : 0;
+        const medal = i === 0 && t.votes > 0 ? '🥇' : i === 1 && t.votes > 0 ? '🥈' : i === 2 && t.votes > 0 ? '🥉' : '';
+
+        const div = document.createElement('div');
+        div.className = 'result-row';
+        div.style.animationDelay = `${0.3 + i * 0.12}s`;
+        div.innerHTML = `
+            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                <div class="flex items-center gap-3 mb-2.5">
+                    <span class="text-lg">${medal || EMOJIS[t.idx % 8]}</span>
+                    <span class="font-bold text-slate-800 flex-1">${t.name}</span>
+                    <span class="font-black text-lg text-indigo-600">${t.votes}<span class="text-xs text-slate-400 font-medium ml-1">(${pct}%)</span></span>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                    <div class="bar-fill h-full rounded-full ${GRADIENTS[t.idx % 8]}" style="width:0" data-w="${barW}%"></div>
+                </div>
+            </div>`;
+        barsEl.appendChild(div);
+    });
+
+    setTimeout(() => {
+        document.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w);
+    }, 700);
+}
+
+// ========== URL 파라미터 ==========
+(function checkUrl() {
+    if (new URLSearchParams(window.location.search).get('mode') === 'vote') {
+        state = loadState();
+        if (state.task && state.teams.length > 0) showPage('page-vote');
+    }
+})();
+</script>
+</body>
+</html>
