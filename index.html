@@ -289,11 +289,21 @@ let selectedTeam = null;
 let voteListener = null;
 
 // ========== Firebase ==========
+const DEFAULT_FB_CONFIG = {
+    apiKey: "AIzaSyBSu2xGWCIwXwkWaTsS24eLpuu9lXc7Sfs",
+    authDomain: "prime-motif-495504-n4.firebaseapp.com",
+    databaseURL: "https://prime-motif-495504-n4-default-rtdb.firebaseio.com",
+    projectId: "prime-motif-495504-n4",
+    storageBucket: "prime-motif-495504-n4.firebasestorage.app",
+    messagingSenderId: "342640634708",
+    appId: "1:342640634708:web:49fd2d940e91d52adeb6c1"
+};
+
 function getFirebaseConfig() {
     try {
         const raw = localStorage.getItem('fb-config');
-        return raw ? JSON.parse(raw) : null;
-    } catch { return null; }
+        return raw ? JSON.parse(raw) : DEFAULT_FB_CONFIG;
+    } catch { return DEFAULT_FB_CONFIG; }
 }
 
 function initFirebase(config) {
@@ -759,18 +769,17 @@ function initResult() {
     voteListener = () => ref.off('value', cb);
 }
 
-// ========== URL 파라미터로 자동 입장 ==========
+// ========== 자동 초기화 & URL 파라미터 입장 ==========
 (function boot() {
+    // Firebase 자동 연결
+    const config = getFirebaseConfig();
+    if (config) initFirebase(config);
+
+    // URL에 room 파라미터가 있으면 자동 입장
     const params = new URLSearchParams(window.location.search);
     const roomCode = params.get('room');
-    if (roomCode) {
-        const config = getFirebaseConfig();
-        if (config) {
-            initFirebase(config);
-            joinRoom(roomCode.toUpperCase());
-        } else {
-            alert('Firebase 설정이 필요합니다. 관리자에게 문의하세요.');
-        }
+    if (roomCode && db) {
+        joinRoom(roomCode.toUpperCase());
     }
 })();
 </script>
