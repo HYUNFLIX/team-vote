@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -38,30 +40,13 @@
         .fade-in-up { animation: fadeInUp 0.6s ease-out both; }
         .slide-in { animation: slideIn 0.5s ease-out both; }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes fadeInUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-12px); }
-        }
-        @keyframes pulseGlow {
-            0%, 100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.2); }
-            50% { box-shadow: 0 0 60px rgba(99, 102, 241, 0.5); }
-        }
-        @keyframes shimmer {
-            0% { background-position: -200% center; }
-            100% { background-position: 200% center; }
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
+        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 30px rgba(99, 102, 241, 0.2); } 50% { box-shadow: 0 0 60px rgba(99, 102, 241, 0.5); } }
+        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+
         .float { animation: float 3s ease-in-out infinite; }
         .winner-glow { animation: pulseGlow 2s ease-in-out infinite; }
         .shimmer-text {
@@ -83,25 +68,16 @@
         .gradient-card-8 { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
 
         .glass { background: rgba(255,255,255,0.15); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.25); }
-        .glass-dark { background: rgba(0,0,0,0.05); backdrop-filter: blur(8px); }
-
         .result-row { opacity: 0; animation: fadeInUp 0.5s ease-out forwards; }
+        .qr-wrapper { background: white; border-radius: 20px; padding: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.1); }
+        input:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
 
-        .qr-wrapper {
-            background: white;
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
-        }
-
-        input:focus { box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2); }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-            transition: all 0.3s;
-        }
+        .btn-primary { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); transition: all 0.3s; }
         .btn-primary:hover { opacity: 0.9; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4); }
         .btn-primary:active { transform: scale(0.97); }
+
+        .loading-spinner { border: 3px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 antialiased">
@@ -121,11 +97,50 @@
                     class="flex-1 px-8 py-4 bg-white text-indigo-600 rounded-2xl font-bold text-lg hover:bg-indigo-50 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 active:scale-95">
                     관리자 설정
                 </button>
-                <button onclick="goToVote()"
+                <button onclick="joinByCode()"
                     class="flex-1 px-8 py-4 glass text-white rounded-2xl font-bold text-lg hover:bg-white/25 transition-all active:scale-95">
                     투표 참여
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- ========== Firebase 초기 설정 ========== -->
+    <div id="page-firebase" class="page flex-col min-h-screen bg-slate-50">
+        <header class="gradient-main text-white px-6 py-5 shadow-lg">
+            <div class="max-w-lg mx-auto flex items-center gap-4">
+                <button onclick="showPage('page-home')" class="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-white/25 transition-all text-lg">←</button>
+                <h2 class="text-xl font-bold flex-1">Firebase 연결 설정</h2>
+            </div>
+        </header>
+        <div class="flex-1 max-w-lg mx-auto w-full p-5 pb-10">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-5 fade-in-up">
+                <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+                    다중 기기 실시간 투표를 위해 Firebase 연결이 필요합니다.<br>
+                    <a href="https://console.firebase.google.com/" target="_blank" class="text-indigo-600 underline font-medium">Firebase Console</a>에서 아래 3단계를 진행하세요.
+                </p>
+                <div class="space-y-3 text-sm text-slate-500 bg-slate-50 rounded-xl p-4 mb-5 border border-slate-100">
+                    <p><strong class="text-slate-700">1.</strong> 프로젝트 생성 (이름 자유)</p>
+                    <p><strong class="text-slate-700">2.</strong> Realtime Database 만들기 → <strong class="text-red-500">테스트 모드</strong>로 시작</p>
+                    <p><strong class="text-slate-700">3.</strong> 프로젝트 설정 → 웹 앱 추가 → <code class="bg-white px-1.5 py-0.5 rounded text-xs">firebaseConfig</code> 복사</p>
+                </div>
+                <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">Firebase Config (JSON)</label>
+                <textarea id="firebase-config-input" rows="8" placeholder='{
+  "apiKey": "AIza...",
+  "authDomain": "xxx.firebaseapp.com",
+  "databaseURL": "https://xxx-default-rtdb.firebaseio.com",
+  "projectId": "xxx",
+  "storageBucket": "xxx.appspot.com",
+  "messagingSenderId": "123...",
+  "appId": "1:123..."
+}'
+                    class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl text-xs font-mono focus:border-indigo-500 focus:outline-none transition-all bg-slate-50 placeholder:text-slate-300 resize-none"></textarea>
+            </div>
+            <button onclick="saveFirebaseConfig()"
+                class="w-full py-4 btn-primary text-white rounded-2xl font-bold text-lg shadow-lg">
+                연결하기
+            </button>
+            <p id="firebase-error" class="text-red-500 text-sm text-center mt-3 hidden"></p>
         </div>
     </div>
 
@@ -138,13 +153,11 @@
             </div>
         </header>
         <div class="flex-1 max-w-lg mx-auto w-full p-5 pb-10">
-            <!-- 과제명 -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-5 fade-in-up">
                 <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-widest">과제명</label>
                 <input id="input-task" type="text" placeholder="예: 프로젝트 최종 발표"
                     class="w-full px-4 py-3.5 border-2 border-slate-200 rounded-xl text-base focus:border-indigo-500 focus:outline-none transition-all bg-slate-50 placeholder:text-slate-300">
             </div>
-            <!-- 팀 설정 -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 mb-5 fade-in-up" style="animation-delay:0.1s">
                 <div class="flex items-center justify-between mb-4">
                     <label class="text-xs font-bold text-slate-400 uppercase tracking-widest">팀 목록</label>
@@ -157,13 +170,12 @@
                 </div>
                 <div id="team-inputs" class="space-y-3"></div>
             </div>
-            <!-- 버튼 -->
             <div class="flex gap-3 fade-in-up" style="animation-delay:0.2s">
-                <button onclick="saveSettings()"
+                <button onclick="saveSettings()" id="btn-save-settings"
                     class="flex-1 py-4 btn-primary text-white rounded-2xl font-bold text-lg shadow-lg">
                     저장 및 시작
                 </button>
-                <button onclick="resetAll()"
+                <button onclick="resetFirebase()"
                     class="px-5 py-4 bg-white border-2 border-slate-200 text-slate-400 rounded-2xl font-bold hover:bg-slate-50 hover:text-slate-600 hover:border-slate-300 transition-all">
                     초기화
                 </button>
@@ -189,16 +201,13 @@
             <div class="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 text-center max-w-sm w-full fade-in-up">
                 <p class="text-sm text-slate-400 font-medium mb-1">아래 QR코드를 스캔하세요</p>
                 <h3 class="text-xl font-bold text-slate-800 mb-6" id="qr-task-title-2"></h3>
-
                 <div class="qr-wrapper inline-block mb-6">
                     <div id="qr-image" class="flex justify-center"></div>
                 </div>
-
-                <div class="bg-slate-50 rounded-xl p-3 mb-6 border border-slate-100">
-                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">투표 링크</p>
-                    <p id="vote-url" class="text-xs text-indigo-600 font-medium break-all select-all"></p>
+                <div class="bg-indigo-50 rounded-xl p-3 mb-6 border border-indigo-100">
+                    <p class="text-[10px] text-indigo-400 font-bold uppercase tracking-widest mb-1">참여 코드</p>
+                    <p id="room-code-display" class="text-2xl font-black text-indigo-600 tracking-[0.3em]"></p>
                 </div>
-
                 <div class="inline-flex items-center gap-3 bg-indigo-50 text-indigo-700 rounded-2xl px-6 py-3">
                     <span class="relative flex h-3 w-3">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -225,8 +234,6 @@
                 팀을 선택해주세요
             </button>
         </div>
-
-        <!-- 투표 완료 오버레이 -->
         <div id="vote-done-overlay" class="hidden fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50">
             <div class="bg-white rounded-3xl p-10 text-center max-w-xs mx-4 fade-in-up shadow-2xl">
                 <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
@@ -235,9 +242,7 @@
                 <h3 class="text-2xl font-bold text-slate-800 mb-1">투표 완료!</h3>
                 <p class="text-slate-400 mb-8 text-sm">소중한 한 표 감사합니다</p>
                 <button onclick="showPage('page-home')"
-                    class="w-full py-3.5 btn-primary text-white rounded-xl font-bold">
-                    확인
-                </button>
+                    class="w-full py-3.5 btn-primary text-white rounded-xl font-bold">확인</button>
             </div>
         </div>
     </div>
@@ -262,48 +267,115 @@
         </div>
     </div>
 
+    <!-- ========== 로딩 오버레이 ========== -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100]">
+        <div class="bg-white rounded-2xl px-8 py-6 flex items-center gap-4 shadow-xl">
+            <div class="loading-spinner" style="border-color: rgba(99,102,241,0.3); border-top-color: #6366f1;"></div>
+            <span class="text-slate-600 font-medium" id="loading-text">불러오는 중...</span>
+        </div>
+    </div>
+
 <script>
-const STORAGE_KEY = 'team-vote-app';
 const GRADIENTS = [
     'gradient-card-1','gradient-card-2','gradient-card-3','gradient-card-4',
     'gradient-card-5','gradient-card-6','gradient-card-7','gradient-card-8'
 ];
 const EMOJIS = ['🩷','💙','💚','🧡','💜','❤️','🩵','💛'];
 
-let state = loadState();
+let db = null;
+let currentRoom = null;
+let sessionConfig = null;
+let selectedTeam = null;
+let voteListener = null;
 
-function defaultState() {
-    return { task: '', teams: ['1팀', '2팀', '3팀'], votes: {}, votedUsers: [] };
-}
-function loadState() {
+// ========== Firebase ==========
+function getFirebaseConfig() {
     try {
-        const s = localStorage.getItem(STORAGE_KEY);
-        if (s) return JSON.parse(s);
-    } catch(e) {}
-    return defaultState();
-}
-function saveState() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-function getTotalVotes() {
-    return Object.values(state.votes).reduce((a, b) => a + b, 0);
+        const raw = localStorage.getItem('fb-config');
+        return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
 }
 
+function initFirebase(config) {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(config);
+    }
+    db = firebase.database();
+}
+
+function saveFirebaseConfig() {
+    const raw = document.getElementById('firebase-config-input').value.trim();
+    const errEl = document.getElementById('firebase-error');
+    errEl.classList.add('hidden');
+
+    let config;
+    try {
+        config = JSON.parse(raw);
+    } catch {
+        errEl.textContent = 'JSON 형식이 올바르지 않습니다. firebaseConfig 객체를 그대로 붙여넣으세요.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    if (!config.databaseURL) {
+        errEl.textContent = 'databaseURL이 포함되어 있지 않습니다. Realtime Database를 먼저 생성해주세요.';
+        errEl.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        initFirebase(config);
+        db.ref('.info/connected').once('value').then(() => {
+            localStorage.setItem('fb-config', JSON.stringify(config));
+            showPage('page-admin');
+        }).catch(() => {
+            localStorage.setItem('fb-config', JSON.stringify(config));
+            showPage('page-admin');
+        });
+    } catch (e) {
+        errEl.textContent = '연결 실패: ' + e.message;
+        errEl.classList.remove('hidden');
+    }
+}
+
+function ensureFirebase() {
+    if (db) return true;
+    const config = getFirebaseConfig();
+    if (!config) return false;
+    initFirebase(config);
+    return true;
+}
+
+// ========== 페이지 전환 ==========
 function showPage(id) {
+    if ((id === 'page-admin' || id === 'page-qr' || id === 'page-result') && !ensureFirebase()) {
+        id = 'page-firebase';
+    }
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
+    if (voteListener) { voteListener(); voteListener = null; }
     if (id === 'page-admin') initAdmin();
     if (id === 'page-qr') initQR();
     if (id === 'page-vote') initVote();
     if (id === 'page-result') initResult();
 }
 
+function showLoading(text) {
+    document.getElementById('loading-text').textContent = text || '불러오는 중...';
+    document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoading() {
+    document.getElementById('loading-overlay').classList.add('hidden');
+}
+
 // ========== 관리자 ==========
 function initAdmin() {
-    document.getElementById('input-task').value = state.task;
+    const saved = localStorage.getItem('admin-teams');
+    const teams = saved ? JSON.parse(saved) : ['1팀', '2팀', '3팀'];
+    document.getElementById('input-task').value = localStorage.getItem('admin-task') || '';
     const c = document.getElementById('team-inputs');
     c.innerHTML = '';
-    state.teams.forEach((name, i) => addTeamField(name, i));
+    teams.forEach((name, i) => addTeamField(name, i));
     updateRemoveBtn();
 }
 
@@ -342,42 +414,84 @@ function updateRemoveBtn() {
     btn.classList.toggle('cursor-not-allowed', n <= 2);
 }
 
-function saveSettings() {
+function generateRoomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+}
+
+async function saveSettings() {
     const task = document.getElementById('input-task').value.trim();
     if (!task) return alert('과제명을 입력해주세요.');
     const teams = Array.from(document.querySelectorAll('.team-name-input'))
         .map(i => i.value.trim()).filter(Boolean);
     if (teams.length < 2) return alert('최소 2팀 이상 입력해주세요.');
-    const votes = {};
-    teams.forEach(t => votes[t] = 0);
-    state = { task, teams, votes, votedUsers: [] };
-    saveState();
-    showPage('page-qr');
+
+    if (!ensureFirebase()) return showPage('page-firebase');
+
+    showLoading('투표방 생성 중...');
+
+    const roomCode = generateRoomCode();
+    const roomData = { task, teams, createdAt: Date.now() };
+
+    try {
+        await db.ref('rooms/' + roomCode + '/config').set(roomData);
+        currentRoom = roomCode;
+        sessionConfig = roomData;
+        localStorage.setItem('admin-task', task);
+        localStorage.setItem('admin-teams', JSON.stringify(teams));
+        localStorage.setItem('current-room', roomCode);
+        hideLoading();
+        showPage('page-qr');
+    } catch (e) {
+        hideLoading();
+        alert('저장 실패: ' + e.message);
+    }
 }
 
-function resetAll() {
-    if (!confirm('모든 설정과 투표 결과를 초기화합니다.\n계속하시겠습니까?')) return;
-    state = defaultState();
-    saveState();
-    initAdmin();
+function resetFirebase() {
+    if (!confirm('Firebase 설정을 초기화합니다.\n계속하시겠습니까?')) return;
+    localStorage.removeItem('fb-config');
+    localStorage.removeItem('current-room');
+    localStorage.removeItem('admin-task');
+    localStorage.removeItem('admin-teams');
+    db = null;
+    showPage('page-firebase');
 }
 
 // ========== QR코드 ==========
 function initQR() {
-    document.getElementById('qr-task-title').textContent = state.task || '투표 진행 중';
-    document.getElementById('qr-task-title-2').textContent = state.task || '';
-    const baseUrl = window.location.href.split('?')[0].split('#')[0];
-    const url = baseUrl + '?mode=vote';
-    document.getElementById('vote-url').textContent = url;
-    document.getElementById('vote-count').textContent = getTotalVotes();
+    if (!currentRoom) {
+        currentRoom = localStorage.getItem('current-room');
+        if (!currentRoom) return showPage('page-admin');
+    }
 
-    generateQR(url);
+    db.ref('rooms/' + currentRoom + '/config').once('value').then(snap => {
+        const data = snap.val();
+        if (!data) return showPage('page-admin');
+        sessionConfig = data;
 
-    if (window._voteInterval) clearInterval(window._voteInterval);
-    window._voteInterval = setInterval(() => {
-        state = loadState();
-        document.getElementById('vote-count').textContent = getTotalVotes();
-    }, 2000);
+        document.getElementById('qr-task-title').textContent = data.task;
+        document.getElementById('qr-task-title-2').textContent = data.task;
+        document.getElementById('room-code-display').textContent = currentRoom;
+
+        const baseUrl = window.location.href.split('?')[0].split('#')[0];
+        const url = baseUrl + '?room=' + currentRoom;
+        generateQR(url);
+
+        listenVoteCount();
+    });
+}
+
+function listenVoteCount() {
+    if (voteListener) voteListener();
+    const ref = db.ref('rooms/' + currentRoom + '/votes');
+    const cb = ref.on('value', snap => {
+        const votes = snap.val() || {};
+        document.getElementById('vote-count').textContent = Object.keys(votes).length;
+    });
+    voteListener = () => ref.off('value', cb);
 }
 
 function generateQR(text) {
@@ -391,42 +505,79 @@ function generateQR(text) {
     img.height = 200;
     img.style.borderRadius = '8px';
     img.onerror = function() {
-        container.innerHTML = `
-            <div class="text-center p-6">
-                <p class="text-slate-400 text-sm mb-2">QR코드 생성 실패</p>
-                <p class="text-indigo-600 text-xs font-medium break-all select-all">${text}</p>
-            </div>`;
+        container.innerHTML = `<p class="text-slate-400 text-sm p-6">QR 생성 실패 — 코드로 참여하세요</p>`;
     };
     container.appendChild(img);
 }
 
-// ========== 투표 ==========
-let selectedTeam = null;
-
-function goToVote() {
-    if (!state.task || state.teams.length === 0) {
-        alert('관리자가 아직 투표를 설정하지 않았습니다.');
-        return showPage('page-admin');
-    }
-    showPage('page-vote');
+// ========== 투표 참여 (코드 입력) ==========
+function joinByCode() {
+    const code = prompt('참여 코드 6자리를 입력하세요:');
+    if (!code) return;
+    joinRoom(code.trim().toUpperCase());
 }
 
+async function joinRoom(code) {
+    if (!ensureFirebase()) {
+        const fbConfig = getFirebaseConfig();
+        if (!fbConfig) {
+            alert('Firebase 설정이 필요합니다. 관리자에게 문의하세요.');
+            return;
+        }
+    }
+
+    showLoading('투표방 확인 중...');
+    try {
+        const snap = await db.ref('rooms/' + code + '/config').once('value');
+        const data = snap.val();
+        if (!data) {
+            hideLoading();
+            alert('존재하지 않는 코드입니다. 다시 확인해주세요.');
+            return;
+        }
+        currentRoom = code;
+        sessionConfig = data;
+        hideLoading();
+        showPage('page-vote');
+    } catch (e) {
+        hideLoading();
+        alert('연결 실패: ' + e.message);
+    }
+}
+
+// ========== 투표 ==========
 function initVote() {
     document.getElementById('vote-done-overlay').classList.add('hidden');
     document.getElementById('btn-submit-vote').style.display = '';
     selectedTeam = null;
-    document.getElementById('vote-task-title').textContent = state.task || '투표';
 
-    const uid = getVoterId();
-    if (state.votedUsers.includes(uid)) {
-        showAlreadyVoted();
+    if (!sessionConfig || !currentRoom) {
+        document.getElementById('team-cards').innerHTML = `
+            <div class="text-center py-20 fade-in-up">
+                <div class="text-5xl mb-4">😅</div>
+                <h3 class="text-xl font-bold text-slate-700 mb-2">투표 정보를 찾을 수 없습니다</h3>
+                <p class="text-slate-400 text-sm">QR코드를 다시 스캔하거나 코드를 입력해주세요</p>
+            </div>`;
+        document.getElementById('btn-submit-vote').style.display = 'none';
         return;
     }
 
+    document.getElementById('vote-task-title').textContent = sessionConfig.task;
+
+    const uid = getVoterId();
+    db.ref('rooms/' + currentRoom + '/votes/' + uid).once('value').then(snap => {
+        if (snap.val()) {
+            showAlreadyVoted();
+        } else {
+            renderTeamCards();
+        }
+    });
+}
+
+function renderTeamCards() {
     const container = document.getElementById('team-cards');
     container.innerHTML = '';
-
-    state.teams.forEach((team, i) => {
+    sessionConfig.teams.forEach((team, i) => {
         const card = document.createElement('button');
         card.className = `team-card w-full rounded-2xl p-5 ${GRADIENTS[i % 8]} text-white shadow-md text-left fade-in-up`;
         card.style.animationDelay = `${i * 0.08}s`;
@@ -439,12 +590,10 @@ function initVote() {
                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
                     </svg>
                 </div>
-            </div>
-        `;
+            </div>`;
         card.onclick = () => selectTeam(team, card);
         container.appendChild(card);
     });
-
     updateVoteBtn();
 }
 
@@ -474,20 +623,31 @@ function updateVoteBtn() {
     }
 }
 
-function submitVote() {
-    if (!selectedTeam) return;
+async function submitVote() {
+    if (!selectedTeam || !currentRoom) return;
     const uid = getVoterId();
-    state = loadState();
-    if (state.votedUsers.includes(uid)) return showAlreadyVoted();
-    if (state.votes[selectedTeam] !== undefined) state.votes[selectedTeam]++;
-    state.votedUsers.push(uid);
-    saveState();
-    document.getElementById('vote-done-overlay').classList.remove('hidden');
+
+    const btn = document.getElementById('btn-submit-vote');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading-spinner"></span>';
+
+    try {
+        const snap = await db.ref('rooms/' + currentRoom + '/votes/' + uid).once('value');
+        if (snap.val()) return showAlreadyVoted();
+
+        await db.ref('rooms/' + currentRoom + '/votes/' + uid).set({
+            team: selectedTeam,
+            timestamp: Date.now()
+        });
+        document.getElementById('vote-done-overlay').classList.remove('hidden');
+    } catch (e) {
+        alert('투표 실패: ' + e.message);
+        updateVoteBtn();
+    }
 }
 
 function showAlreadyVoted() {
-    const c = document.getElementById('team-cards');
-    c.innerHTML = `
+    document.getElementById('team-cards').innerHTML = `
         <div class="text-center py-20 fade-in-up">
             <div class="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-5">
                 <span class="text-4xl">🙏</span>
@@ -509,73 +669,108 @@ function getVoterId() {
 
 // ========== 결과 ==========
 function initResult() {
-    state = loadState();
-    document.querySelector('#result-task-name h3').textContent = state.task;
-    const total = getTotalVotes();
-    document.getElementById('total-votes-text').textContent = `총 ${total}명 참여`;
-
-    const sorted = state.teams
-        .map(t => ({ name: t, votes: state.votes[t] || 0, idx: state.teams.indexOf(t) }))
-        .sort((a, b) => b.votes - a.votes);
-
-    const ws = document.getElementById('winner-section');
-    if (total > 0 && sorted[0].votes > 0) {
-        const w = sorted[0];
-        ws.innerHTML = `
-            <div class="winner-glow ${GRADIENTS[w.idx % 8]} rounded-3xl p-8 text-white text-center relative overflow-hidden">
-                <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
-                <div class="relative z-10">
-                    <div class="text-5xl mb-3 float">🏆</div>
-                    <p class="text-white/70 text-xs font-bold uppercase tracking-widest mb-2">우수팀 선정</p>
-                    <h2 class="font-display text-4xl mb-3 shimmer-text">${w.name}</h2>
-                    <p class="text-xl font-bold text-white/90">${w.votes}표 · ${Math.round(w.votes / total * 100)}%</p>
-                </div>
-            </div>`;
-        setTimeout(() => confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 }, colors: ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6'] }), 400);
-    } else {
-        ws.innerHTML = `
-            <div class="bg-slate-100 rounded-3xl p-10 text-center border-2 border-dashed border-slate-200">
-                <div class="text-5xl mb-3">🗳️</div>
-                <p class="text-slate-400 font-bold">아직 투표가 없습니다</p>
-            </div>`;
+    if (!currentRoom) {
+        currentRoom = localStorage.getItem('current-room');
+        if (!currentRoom) return showPage('page-admin');
     }
 
-    const maxV = sorted.length > 0 ? sorted[0].votes : 1;
-    const barsEl = document.getElementById('result-bars');
-    barsEl.innerHTML = '';
+    db.ref('rooms/' + currentRoom).once('value').then(snap => {
+        const room = snap.val();
+        if (!room || !room.config) return showPage('page-admin');
 
-    sorted.forEach((t, i) => {
-        const pct = total > 0 ? Math.round(t.votes / total * 100) : 0;
-        const barW = maxV > 0 ? (t.votes / maxV * 100) : 0;
-        const medal = i === 0 && t.votes > 0 ? '🥇' : i === 1 && t.votes > 0 ? '🥈' : i === 2 && t.votes > 0 ? '🥉' : '';
+        const config = room.config;
+        const rawVotes = room.votes || {};
 
-        const div = document.createElement('div');
-        div.className = 'result-row';
-        div.style.animationDelay = `${0.3 + i * 0.12}s`;
-        div.innerHTML = `
-            <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
-                <div class="flex items-center gap-3 mb-2.5">
-                    <span class="text-lg">${medal || EMOJIS[t.idx % 8]}</span>
-                    <span class="font-bold text-slate-800 flex-1">${t.name}</span>
-                    <span class="font-black text-lg text-indigo-600">${t.votes}<span class="text-xs text-slate-400 font-medium ml-1">(${pct}%)</span></span>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
-                    <div class="bar-fill h-full rounded-full ${GRADIENTS[t.idx % 8]}" style="width:0" data-w="${barW}%"></div>
-                </div>
-            </div>`;
-        barsEl.appendChild(div);
+        const voteCounts = {};
+        config.teams.forEach(t => voteCounts[t] = 0);
+        Object.values(rawVotes).forEach(v => {
+            if (voteCounts[v.team] !== undefined) voteCounts[v.team]++;
+        });
+
+        const total = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+
+        document.querySelector('#result-task-name h3').textContent = config.task;
+        document.getElementById('total-votes-text').textContent = `총 ${total}명 참여`;
+
+        const sorted = config.teams
+            .map(t => ({ name: t, votes: voteCounts[t] || 0, idx: config.teams.indexOf(t) }))
+            .sort((a, b) => b.votes - a.votes);
+
+        const ws = document.getElementById('winner-section');
+        if (total > 0 && sorted[0].votes > 0) {
+            const w = sorted[0];
+            ws.innerHTML = `
+                <div class="winner-glow ${GRADIENTS[w.idx % 8]} rounded-3xl p-8 text-white text-center relative overflow-hidden">
+                    <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+                    <div class="relative z-10">
+                        <div class="text-5xl mb-3 float">🏆</div>
+                        <p class="text-white/70 text-xs font-bold uppercase tracking-widest mb-2">우수팀 선정</p>
+                        <h2 class="font-display text-4xl mb-3 shimmer-text">${w.name}</h2>
+                        <p class="text-xl font-bold text-white/90">${w.votes}표 · ${Math.round(w.votes / total * 100)}%</p>
+                    </div>
+                </div>`;
+            setTimeout(() => confetti({ particleCount: 200, spread: 100, origin: { y: 0.5 }, colors: ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6'] }), 400);
+        } else {
+            ws.innerHTML = `
+                <div class="bg-slate-100 rounded-3xl p-10 text-center border-2 border-dashed border-slate-200">
+                    <div class="text-5xl mb-3">🗳️</div>
+                    <p class="text-slate-400 font-bold">아직 투표가 없습니다</p>
+                </div>`;
+        }
+
+        const maxV = sorted.length > 0 ? sorted[0].votes : 1;
+        const barsEl = document.getElementById('result-bars');
+        barsEl.innerHTML = '';
+
+        sorted.forEach((t, i) => {
+            const pct = total > 0 ? Math.round(t.votes / total * 100) : 0;
+            const barW = maxV > 0 ? (t.votes / maxV * 100) : 0;
+            const medal = i === 0 && t.votes > 0 ? '🥇' : i === 1 && t.votes > 0 ? '🥈' : i === 2 && t.votes > 0 ? '🥉' : '';
+
+            const div = document.createElement('div');
+            div.className = 'result-row';
+            div.style.animationDelay = `${0.3 + i * 0.12}s`;
+            div.innerHTML = `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">
+                    <div class="flex items-center gap-3 mb-2.5">
+                        <span class="text-lg">${medal || EMOJIS[t.idx % 8]}</span>
+                        <span class="font-bold text-slate-800 flex-1">${t.name}</span>
+                        <span class="font-black text-lg text-indigo-600">${t.votes}<span class="text-xs text-slate-400 font-medium ml-1">(${pct}%)</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                        <div class="bar-fill h-full rounded-full ${GRADIENTS[t.idx % 8]}" style="width:0" data-w="${barW}%"></div>
+                    </div>
+                </div>`;
+            barsEl.appendChild(div);
+        });
+
+        setTimeout(() => {
+            document.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w);
+        }, 700);
     });
 
-    setTimeout(() => {
-        document.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w);
-    }, 700);
+    if (voteListener) voteListener();
+    const ref = db.ref('rooms/' + currentRoom + '/votes');
+    const cb = ref.on('value', () => {
+        if (document.getElementById('page-result').classList.contains('active')) {
+            initResult();
+        }
+    });
+    voteListener = () => ref.off('value', cb);
 }
 
-// ========== URL 파라미터 ==========
-(function checkUrl() {
-    if (new URLSearchParams(window.location.search).get('mode') === 'vote') {
-        state = loadState();
-        if (state.task && state.teams.length > 0) showPage('page-vote');
+// ========== URL 파라미터로 자동 입장 ==========
+(function boot() {
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    if (roomCode) {
+        const config = getFirebaseConfig();
+        if (config) {
+            initFirebase(config);
+            joinRoom(roomCode.toUpperCase());
+        } else {
+            alert('Firebase 설정이 필요합니다. 관리자에게 문의하세요.');
+        }
     }
 })();
 </script>
